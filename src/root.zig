@@ -10,10 +10,14 @@ pub fn convert(
 
     try nix.writeAll("{\n");
 
-    try nix.print("  \"{s}\" = {{\n", .{"globalSection"});
+    var in_global_section = true;
+    try nix.writeAll("  globalSection = {\n");
     while (true) {
         const first_char = ini.readByte() catch |err| switch (err) {
             error.EndOfStream => {
+                if (!in_global_section) {
+                    try nix.writeAll("  };\n");
+                }
                 try nix.writeAll("  };\n}");
                 return;
             },
@@ -33,7 +37,12 @@ pub fn convert(
 
             var parts = std.mem.splitScalar(u8, str, ']');
             const section = parts.first();
-            try nix.print("  }};\n  \"{s}\" = {{\n", .{section});
+            try nix.writeAll("  };\n");
+            if (in_global_section) {
+                try nix.writeAll("  sections = {\n");
+            }
+            try nix.print("  \"{s}\" = {{\n", .{section});
+            in_global_section = false;
             continue;
         }
 
