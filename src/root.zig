@@ -102,8 +102,8 @@ pub fn convert(
         const comment = parts.rest();
 
         var kvp_parts = std.mem.splitScalar(u8, kvp, '=');
-        const key = parseIniKeyOrValue(kvp_parts.first());
-        const value = parseIniKeyOrValue(kvp_parts.rest());
+        const key = std.mem.trim(u8, kvp_parts.first(), &std.ascii.whitespace);
+        const value = std.mem.trim(u8, kvp_parts.rest(), &std.ascii.whitespace);
 
         // Comment only
         if (key.len == 0) {
@@ -115,7 +115,7 @@ pub fn convert(
         }
 
         try nix.startAttribute(key);
-        try nix.writer.print("{}", .{iniValueFormatter(value)});
+        try nix.writer.print("{}", .{nixValueFormatter(value)});
         try nix.endAttribute();
         if (write_comments and comment.len > 0) {
             try nix.writer.print(" #{s}", .{comment});
@@ -123,35 +123,46 @@ pub fn convert(
     }
 }
 
-fn parseIniKeyOrValue(raw: []const u8) []const u8 {
-    const no_whitespace = std.mem.trim(u8, raw, &std.ascii.whitespace);
-    return std.mem.trim(u8, no_whitespace, "\"");
+fn nixKeyFormatter(key: []const u8) std.fmt.Formatter(formatNixKey) {
+    return .{ .data = key };
 }
 
-fn iniValueFormatter(value: []const u8) std.fmt.Formatter(formatIniValue) {
-    return .{ .data = value };
-}
-
-fn formatIniValue(
+fn formatNixKey(
     value: []const u8,
     comptime _: []const u8,
     _: std.fmt.FormatOptions,
     writer: anytype,
 ) !void {
-    // Bool
-    if (std.ascii.eqlIgnoreCase(value, "True")) {
-        return writer.writeAll("true");
+    try writer.writeByte('"');
+    for (value) |c| {
+        if (c == '"') {
+            try writer.writeByte('\\');
+        }
+        try writer.writeByte(c);
     }
-    if (std.ascii.eqlIgnoreCase(value, "False")) {
-        return writer.writeAll("false");
-    }
+    try writer.writeByte('"');
+}
 
-    // Int or float
-    blk: {
-        _ = std.fmt.parseFloat(f64, value) catch break :blk;
-        return writer.writeAll(value);
-    }
+fn nixValueFormatter(value: []const u8) std.fmt.Formatter(formatNixValue) {
+    return .{ .data = value };
+}
 
-    // String
-    try writer.print("''{s}''", .{value});
+fn formatNixValue(
+    value: []const u8,
+    comptime _: []const u8,
+    _: std.fmt.FormatOptions,
+    writer: anytype,
+) !void {
+    try writer.writeAll("''");
+    var i: usize = 0;
+    while (i < value.len) {
+        if (i + 1 < value.len and std.mem.eql(u8, "'" ** 2, value[i .. i + 2])) {
+            try writer.writeAll("'" ** 3);
+            i += 2;
+        } else {
+            try writer.writeByte(value[i]);
+            i += 1;
+        }
+    }
+    try writer.writeAll("''");
 }
