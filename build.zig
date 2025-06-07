@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
     }).module("known-folders");
 
     const exe = b.addExecutable(.{
-        .name = "ini2nix",
+        .name = "fcitx-ini2nix",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

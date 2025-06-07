@@ -1,8 +1,8 @@
 .{
-    .name = .ini2nix,
+    .name = .fcitx_ini2nix,
     .version = "0.0.0",
-    .fingerprint = 0xd71452be7fe1a204, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.15.0-dev.734+adc4418ba",
+    .fingerprint = 0xa7907dc130756b5c, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .known_folders = .{
             .url = "git+https://github.com/ziglibs/known-folders#aa24df42183ad415d10bc0a33e6238c437fc0f59",
