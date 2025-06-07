@@ -22,40 +22,42 @@ pub fn main() !void {
 
     const stdout = std.io.getStdOut();
     var bw = std.io.bufferedWriter(stdout.writer());
-    const writer = bw.writer().any();
+    defer bw.flush() catch @panic("Failed to flush");
 
-    try writer.writeAll("{\n  inputMethod = ");
-    try convertFile(config_dir, "profile", writer);
-    try writer.writeAll(";\n  globalOptions = ");
-    try convertFile(config_dir, "config", writer);
+    var nix: lib.NixWriter = .init(bw.writer().any(), 2);
+    try nix.startSet();
+    defer nix.endSet() catch @panic("Failed to write");
 
-    try writer.writeAll(";\n  addons = {");
-    {
-        var conf_dir = try config_dir.openDir("conf", .{ .iterate = true });
-        defer conf_dir.close();
+    try convertFile(config_dir, "profile", "inputMethod", &nix);
+    try convertFile(config_dir, "config", "globalOptions", &nix);
 
-        var it = conf_dir.iterate();
-        while (try it.next()) |entry| {
-            if (entry.kind != .file) continue;
-            if (std.mem.eql(u8, "cached_layouts", entry.name)) continue;
+    try nix.startAttribute("addons");
+    defer nix.endAttribute() catch @panic("Failed to write");
+    try nix.startSet();
+    defer nix.endSet() catch @panic("Failed to write");
 
-            try writer.print("\n  {s} = ", .{std.fs.path.stem(entry.name)});
-            try convertFile(conf_dir, entry.name, writer);
-            try writer.writeByte(';');
-        }
+    var conf_dir = try config_dir.openDir("conf", .{ .iterate = true });
+    defer conf_dir.close();
+    var it = conf_dir.iterate();
+    while (try it.next()) |entry| {
+        if (entry.kind != .file) continue;
+        if (std.mem.eql(u8, "cached_layouts", entry.name)) continue;
+        const attr_name = std.fs.path.stem(entry.name);
+        try convertFile(conf_dir, entry.name, attr_name, &nix);
     }
-    try writer.writeAll("\n};\n}");
-
-    try bw.flush();
 }
 
 fn convertFile(
     config_dir: std.fs.Dir,
     sub_path: []const u8,
-    writer: std.io.AnyWriter,
+    attribute_name: []const u8,
+    nix: *lib.NixWriter,
 ) !void {
     const f = try config_dir.openFile(sub_path, .{});
     defer f.close();
     var br = std.io.bufferedReader(f.reader());
-    try lib.convert(br.reader().any(), writer, false);
+
+    try nix.startAttribute(attribute_name);
+    try lib.convert(br.reader().any(), nix, false);
+    try nix.endAttribute();
 }
