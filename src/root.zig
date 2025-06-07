@@ -41,25 +41,30 @@ pub const NixWriter = struct {
 pub fn convert(
     ini: std.io.AnyReader,
     nix: *NixWriter,
-    write_comments: bool,
+    with_global_section: bool,
 ) !void {
     var buf: [1024]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buf);
 
     try nix.startSet();
 
-    var in_global_section = true;
-    try nix.startAttribute("globalSection");
-    try nix.startSet();
+    var in_first_section = true;
+    if (with_global_section) {
+        try nix.startAttribute("globalSection");
+        try nix.startSet();
+    }
+
     while (true) {
         const first_char = ini.readByte() catch |err| switch (err) {
             error.EndOfStream => {
-                if (!in_global_section) {
+                if (!in_first_section) {
                     try nix.endSet();
                     try nix.endAttribute();
                 }
-                try nix.endSet();
-                try nix.endAttribute();
+                if (with_global_section) {
+                    try nix.endSet();
+                    try nix.endAttribute();
+                }
                 try nix.endSet();
                 return;
             },
@@ -79,15 +84,17 @@ pub fn convert(
 
             var parts = std.mem.splitScalar(u8, str, ']');
             const section = parts.first();
-            try nix.endSet();
-            try nix.endAttribute();
-            if (in_global_section) {
+            if (!in_first_section or with_global_section) {
+                try nix.endSet();
+                try nix.endAttribute();
+            }
+            if (in_first_section and with_global_section) {
                 try nix.startAttribute("sections");
                 try nix.startSet();
             }
             try nix.startAttribute(section);
             try nix.startSet();
-            in_global_section = false;
+            in_first_section = false;
             continue;
         }
 
@@ -97,7 +104,7 @@ pub fn convert(
         try ini.streamUntilDelimiter(fbs.writer(), '\n', null);
 
         const str = fbs.getWritten();
-        var parts = std.mem.splitScalar(u8, str, '#');
+        var parts = std.mem.splitScalar(u8, str, '#'); // '#' Indicates comment
         const kvp = parts.first();
         const comment = parts.rest();
 
@@ -107,7 +114,7 @@ pub fn convert(
 
         // Comment only
         if (key.len == 0) {
-            if (write_comments and comment.len > 0) {
+            if (comment.len > 0) {
                 try nix.newLine();
                 try nix.writer.print("#{s}", .{comment});
             }
@@ -117,7 +124,8 @@ pub fn convert(
         try nix.startAttribute(key);
         try nix.writer.print("{}", .{nixValueFormatter(value)});
         try nix.endAttribute();
-        if (write_comments and comment.len > 0) {
+        // Inline coment
+        if (comment.len > 0) {
             try nix.writer.print(" #{s}", .{comment});
         }
     }

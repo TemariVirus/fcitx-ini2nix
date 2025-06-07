@@ -28,8 +28,8 @@ pub fn main() !void {
     try nix.startSet();
     defer nix.endSet() catch @panic("Failed to write");
 
-    try convertFile(config_dir, "profile", "inputMethod", &nix);
-    try convertFile(config_dir, "config", "globalOptions", &nix);
+    try convertFile(config_dir, "profile", "inputMethod", false, &nix);
+    try convertFile(config_dir, "config", "globalOptions", false, &nix);
 
     try nix.startAttribute("addons");
     defer nix.endAttribute() catch @panic("Failed to write");
@@ -43,7 +43,7 @@ pub fn main() !void {
         if (entry.kind != .file) continue;
         if (std.mem.eql(u8, "cached_layouts", entry.name)) continue;
         const attr_name = std.fs.path.stem(entry.name);
-        try convertFile(conf_dir, entry.name, attr_name, &nix);
+        try convertFile(conf_dir, entry.name, attr_name, true, &nix);
     }
 }
 
@@ -51,6 +51,7 @@ fn convertFile(
     config_dir: std.fs.Dir,
     sub_path: []const u8,
     attribute_name: []const u8,
+    with_global_section: bool,
     nix: *lib.NixWriter,
 ) !void {
     const f = try config_dir.openFile(sub_path, .{});
@@ -58,6 +59,6 @@ fn convertFile(
     var br = std.io.bufferedReader(f.reader());
 
     try nix.startAttribute(attribute_name);
-    try lib.convert(br.reader().any(), nix, false);
+    try lib.convert(br.reader().any(), nix, with_global_section);
     try nix.endAttribute();
 }
