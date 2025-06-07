@@ -1,10 +1,13 @@
 # fcitx-ini2nix
 
-Converts [Fcitx5](https://fcitx-im.org/) configuration files to Nix.
+Convert [Fcitx5](https://fcitx-im.org/) configuration files to Nix.
 
 ## Usage
 
 ```sh
+# Create a new shell with the package installed
+nix shell github:TemariVirus/fcitx-ini2nix
+# Run the program
 fcitx-ini2nix
 ```
 
